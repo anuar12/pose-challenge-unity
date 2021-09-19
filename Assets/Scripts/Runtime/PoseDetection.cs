@@ -18,42 +18,46 @@ namespace Pose.Detection
     {
         [SerializeField] private VideoPlayer videoPlayer;
         [SerializeField] private ComputeShader preprocessingShader;
-        
+        public RenderTexture videoTexture;
+
         [Space]
         [SerializeField] private int imageHeight = 360;
         [SerializeField] private int imageWidth = 360;
-        
+
         [Space]
         [SerializeField] private GameObject videoQuad;
+
+		public bool displayInput = false;
+		public GameObject inputScreen;
+        public RenderTexture inputTexture;
+
 
         #region private
         private int _videoHeight;
         private int _videoWidth;
-        private RenderTexture videoTexture;
-        private RenderTexture inputTexture;
-        
+
         private const int numKeypoints = 17;
         // Estimated 2D keypoint locations in videoTexture and their associated confidence values
         private float[][] keypointLocations = new float[numKeypoints][];
-        
+
         //Shader Property
         private static readonly int MainTex = Shader.PropertyToID("_MainTex");
         #endregion
-        
+
         private void Start()
         {
             _videoHeight = (int)videoPlayer.GetComponent<VideoPlayer>().height;
             _videoWidth = (int)videoPlayer.GetComponent<VideoPlayer>().width;
-            
+
             // Create a new videoTexture using the current video dimensions
             videoTexture = new RenderTexture(_videoWidth, _videoHeight, 24, RenderTextureFormat.ARGB32);
             videoPlayer.GetComponent<VideoPlayer>().targetTexture = videoTexture;
-            
+
             //Apply Texture to Quad
             videoQuad.gameObject.GetComponent<MeshRenderer>().material.SetTexture(MainTex, videoTexture);
             videoQuad.transform.localScale = new Vector3(_videoWidth, _videoHeight, videoQuad.transform.localScale.z);
             videoQuad.transform.position = new Vector3(0 , 0, 1);
-            
+
             //Move Camera to keep Quad in view
             var mainCamera = Camera.main;
             if (mainCamera !=null)
@@ -61,13 +65,13 @@ namespace Pose.Detection
                 mainCamera.transform.position = new Vector3(0, 0, -(_videoWidth / 2));
                 mainCamera.GetComponent<Camera>().orthographicSize = _videoHeight / 2;
             }
-            
+
             //TODO: Create Model from onnx asset and compile it to an object
-            
+
             //TODO: Add Layers to model
-            
+
             //TODO: Create Worker Engine
-            
+
         }
 
 
@@ -75,58 +79,71 @@ namespace Pose.Detection
         private void Update()
         {
             Texture2D processedImage = PreprocessTexture();
-            
-            //TODO: Create Tensor 
-            
+
+			if (displayInput) {
+				inputScreen.SetActive(true);
+				Graphics.Blit(processedImage, inputTexture);
+				// Texture2D scaledInputImage = ScaleInputImage(processedImage);
+				// // Copy the data from the Texture2D to the RenderTexture
+				// Graphics.Blit(scaledInputImage, inputTexture);
+				// // Destroy the temporary Texture2D
+				// Destroy(scaledInputImage);
+			} else {
+				inputScreen.SetActive(false);
+			}
+
+
+            //TODO: Create Tensor
+
             //TODO: Execute Engine
-            
+
             //TODO: Process Results
             // ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
-            
+
             //TODO: Draw Skeleton
-            
+
             //TODO: Clean up tensors and other resources
-            
+
             Destroy(processedImage);
         }
 
         private void OnDisable()
         {
             //TODO: Release the inference engine
-            
+
             //Release videoTexture
             videoTexture.Release();
         }
 
-        
+
         #region Additional Methods
-        
+
         private void ProcessResults(Tensor heatmaps, Tensor offsets)
         {
             // Determine the estimated key point locations using the heatmaps and offsets tensors
-            
+
             // Calculate the stride used to scale down the inputImage
             float stride = (imageHeight - 1) / (heatmaps.shape.height - 1);
             stride -= (stride % 8);
-            
+
             int minDimension = Mathf.Min(videoTexture.width, videoTexture.height);
             int maxDimension = Mathf.Max(videoTexture.width, videoTexture.height);
-            
+
             //Recalculate scale for the keypoints
             var scale = (float) minDimension / (float) Mathf.Min(imageWidth, imageHeight);
             var adjustedScale = (float)maxDimension / (float)minDimension;
-            
+
             // Iterate through heatmaps
             for (int k = 0; k < numKeypoints; k++)
             {
                 //Find Location of keypoint
                 var locationInfo = LocateKeyPoint(heatmaps, offsets, k);
-                
+
                 // The (x, y) coordinates contains the confidence value in the current heatmap
                 var coords = locationInfo.Item1;
                 var offsetVector = locationInfo.Item2;
                 var confidenceValue = locationInfo.Item3;
-                
+
                 //Calulate X position and Y position
                 var xPos = (coords[0]*stride + offsetVector[0])*scale;
                 var yPos = (imageHeight - (coords[1]*stride + offsetVector[1]))*scale;
@@ -137,18 +154,18 @@ namespace Pose.Detection
                 {
                     yPos *= adjustedScale;
                 }
-                
+
                 keypointLocations[k] = new float[] { xPos, yPos, confidenceValue };
             }
         }
-        
+
         private (float[],float[],float) LocateKeyPoint(Tensor heatmaps, Tensor offsets, int i)
         {
             //Find the heatmap index that contains the highest confidence value and the associated offset vector
             var maxConfidence = 0f;
             var coords = new float[2];
             var offsetVector = new float[2];
-            
+
             // Iterate through heatmap columns
             for (int y = 0; y < heatmaps.shape.height; y++)
             {
@@ -173,17 +190,17 @@ namespace Pose.Detection
         private Texture2D PreprocessTexture()
         {
             //Apply any kind of preprocessing if required - Resize, Color values scaled etc
-            
-            Texture2D imageTexture = new Texture2D(videoTexture.width, 
+
+            Texture2D imageTexture = new Texture2D(videoTexture.width,
                 videoTexture.height, TextureFormat.RGBA32, false);
-            
+
             Graphics.CopyTexture(videoTexture, imageTexture);
             Texture2D tempTex = Resize(imageTexture, imageHeight, imageWidth);
             Destroy(imageTexture);
 
             // TODO: Apply model-specific preprocessing
-            // imageTexture = PreprocessNetwork(tempTex);
-            
+            imageTexture = PreprocessNetwork(tempTex);
+
             Destroy(tempTex);
             return imageTexture;
         }
@@ -191,46 +208,81 @@ namespace Pose.Detection
         private Texture2D PreprocessNetwork(Texture2D inputImage)
         {
             // Use Compute Shaders (GPU) to preprocess your image
-            // Each model requires a specific color space - RGB 
+            // Each model requires a specific color space - RGB
             // Values need to scaled to what it was trained on
-            
+
             var numthreads = 8;
             var kernelHandle = preprocessingShader.FindKernel("Preprocess");
-            var rTex = new RenderTexture(inputImage.width, 
+            var rTex = new RenderTexture(inputImage.width,
                 inputImage.height, 24, RenderTextureFormat.ARGBHalf);
             rTex.enableRandomWrite = true;
             rTex.Create();
-            
+
             preprocessingShader.SetTexture(kernelHandle, "Result", rTex);
             preprocessingShader.SetTexture(kernelHandle, "InputImage", inputImage);
             preprocessingShader.Dispatch(kernelHandle, inputImage.height
-                                                       / numthreads, 
+                                                       / numthreads,
                 inputImage.width / numthreads, 1);
-            
+
             RenderTexture.active = rTex;
             Texture2D nTex = new Texture2D(rTex.width, rTex.height, TextureFormat.RGBAHalf, false);
             Graphics.CopyTexture(rTex, nTex);
             RenderTexture.active = null;
-            
+
             Destroy(rTex);
             return nTex;
         }
-        
+
         private Texture2D Resize(Texture2D image, int newWidth, int newHeight)
         {
             RenderTexture rTex = RenderTexture.GetTemporary(newWidth, newHeight, 24);
             RenderTexture.active = rTex;
-            
+
             Graphics.Blit(image, rTex);
             Texture2D nTex = new Texture2D(newWidth, newHeight, TextureFormat.RGBA32, false);
-            
+
             Graphics.CopyTexture(rTex, nTex);
             RenderTexture.active = null;
-            
+
             RenderTexture.ReleaseTemporary(rTex);
             return nTex;
         }
-        
+
+		private Texture2D ScaleInputImage(Texture2D inputImage)
+		{
+			// Specify the number of threads on the GPU
+			int numthreads = 8;
+			// Get the index for the ScaleInputImage function in the ComputeShader
+			int kernelHandle = preprocessingShader.FindKernel("ScaleInputImage");
+			// Define an HDR RenderTexture
+			RenderTexture rTex = new RenderTexture(inputImage.width, inputImage.height, 24, RenderTextureFormat.ARGBHalf);
+			// Enable random write access
+			rTex.enableRandomWrite = true;
+			// Create the HDR RenderTexture
+			rTex.Create();
+
+			// Set the value for the Result variable in the ComputeShader
+			preprocessingShader.SetTexture(kernelHandle, "Result", rTex);
+			// Set the value for the InputImage variable in the ComputeShader
+			preprocessingShader.SetTexture(kernelHandle, "InputImage", inputImage);
+
+			// Execute the ComputeShader
+			preprocessingShader.Dispatch(kernelHandle, inputImage.height / numthreads, inputImage.width / numthreads, 1);
+			// Make the HDR RenderTexture the active RenderTexture
+			RenderTexture.active = rTex;
+
+			// Create a new HDR Texture2D
+			Texture2D nTex = new Texture2D(rTex.width, rTex.height, TextureFormat.RGBAHalf, false);
+
+			// Copy the RenderTexture to the new Texture2D
+			Graphics.CopyTexture(rTex, nTex);
+			// Make the HDR RenderTexture not the active RenderTexture
+			RenderTexture.active = null;
+			// Remove the HDR RenderTexture
+			Destroy(rTex);
+			return nTex;
+		}
+
         #endregion
     }
 }

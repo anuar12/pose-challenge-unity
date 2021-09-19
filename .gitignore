@@ -62,3 +62,4 @@ UserSettings/
 .vscode
 *.mp4
 *.onnx
+.DS_Store

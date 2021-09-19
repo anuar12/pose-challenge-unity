@@ -17,12 +17,20 @@ void Preprocess(uint3 id : SV_DispatchThreadID)
         (InputImage[id.xy].z * 255.0h) + (-103.06h), 1.0h);
 }
 
+// [numthreads(8,8,1)]
+// void Preprocess(uint3 id : SV_DispatchThreadID)
+// {
+//     Result[id.xy] = half4(InputImage[id.xy].x ,
+//         InputImage[id.xy].y,
+//         InputImage[id.xy].z , 1.0h);
+// }
+
 [numthreads(8, 8, 1)]
 void ScaleInputImage(uint3 id : SV_DispatchThreadID)
 {
-    Result[id.xy] = half4((InputImage[id.xy].x / 255.0h),
-        (InputImage[id.xy].y / 255.0h),
-        (InputImage[id.xy].z / 255.0h), 1.0h);
+    Result[id.xy] = half4((InputImage[id.xy].x / 2.0h),
+        (InputImage[id.xy].y / 2.0h),
+        (InputImage[id.xy].z / 2.0h), 1.0h);
 }
 
 [numthreads(8, 8, 1)]
