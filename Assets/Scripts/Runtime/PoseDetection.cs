@@ -54,6 +54,11 @@ namespace Pose.Detection
 		private string offsetsLayer = "float_short_offsets";
 		private string predictionLayer = "heatmap_predictions";
 
+		public GameObject[] keypoints;
+
+		[Range(0, 100)]
+		public int minConfidence = 70;
+
         private void Start()
         {
             _videoHeight = (int)videoPlayer.GetComponent<VideoPlayer>().height;
@@ -113,7 +118,7 @@ namespace Pose.Detection
 			engine.Execute(input);
 
             //TODO: Process Results
-            // ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
+			ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
 
             //TODO: Draw Skeleton
 
