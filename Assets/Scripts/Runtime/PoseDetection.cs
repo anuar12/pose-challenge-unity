@@ -71,13 +71,13 @@ namespace Pose.Detection
             //Apply Texture to Quad
             videoQuad.gameObject.GetComponent<MeshRenderer>().material.SetTexture(MainTex, videoTexture);
             videoQuad.transform.localScale = new Vector3(_videoWidth, _videoHeight, videoQuad.transform.localScale.z);
-            videoQuad.transform.position = new Vector3(0 , 0, 1);
+            videoQuad.transform.position = new Vector3(_videoWidth / 2, _videoHeight / 2, 1);
 
             //Move Camera to keep Quad in view
             var mainCamera = Camera.main;
             if (mainCamera !=null)
             {
-                mainCamera.transform.position = new Vector3(0, 0, -(_videoWidth / 2));
+                mainCamera.transform.position = new Vector3(_videoWidth / 2, _videoHeight / 2, -(_videoWidth / 2));
                 mainCamera.GetComponent<Camera>().orthographicSize = _videoHeight / 2;
             }
 
@@ -121,6 +121,7 @@ namespace Pose.Detection
 			ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
 
             //TODO: Draw Skeleton
+			UpdateKeyPointPositions();
 
             //TODO: Clean up tensors and other resources
 			input.Dispose();
@@ -303,6 +304,20 @@ namespace Pose.Detection
 			// Remove the HDR RenderTexture
 			Destroy(rTex);
 			return nTex;
+		}
+
+		private void UpdateKeyPointPositions() {
+			for (int k = 0; k < numKeypoints; k++) {
+				if (keypointLocations[k][2] >= minConfidence / 100f) {
+					keypoints[k].SetActive(true);
+					//keypoints[k].activeInHierarchy
+				} else {
+					keypoints[k].SetActive(false);
+				}
+
+				Vector3 newPos = new Vector3(keypointLocations[k][0], keypointLocations[k][1], -1f);
+				keypoints[k].transform.position = newPos;
+			}
 		}
 
         #endregion
