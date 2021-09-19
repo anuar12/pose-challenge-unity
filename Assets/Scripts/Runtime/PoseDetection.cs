@@ -44,6 +44,16 @@ namespace Pose.Detection
         private static readonly int MainTex = Shader.PropertyToID("_MainTex");
         #endregion
 
+		public NNModel modelAsset;
+		public WorkerFactory.Type workerType = WorkerFactory.Type.Auto;
+
+		private Model m_RuntimeModel;
+		private IWorker engine;
+
+		private string heatmapLayer = "float_heatmaps";
+		private string offsetsLayer = "float_short_offsets";
+		private string predictionLayer = "heatmap_predictions";
+
         private void Start()
         {
             _videoHeight = (int)videoPlayer.GetComponent<VideoPlayer>().height;
@@ -67,11 +77,14 @@ namespace Pose.Detection
             }
 
             //TODO: Create Model from onnx asset and compile it to an object
+			m_RuntimeModel = ModelLoader.Load(modelAsset);
 
             //TODO: Add Layers to model
+			var modelBuilder = new ModelBuilder(m_RuntimeModel);
+            modelBuilder.Sigmoid(predictionLayer, heatmapLayer);
 
             //TODO: Create Worker Engine
-
+			engine = WorkerFactory.CreateWorker(workerType, modelBuilder.model);
         }
 
 
@@ -82,20 +95,22 @@ namespace Pose.Detection
 
 			if (displayInput) {
 				inputScreen.SetActive(true);
-				Graphics.Blit(processedImage, inputTexture);
-				// Texture2D scaledInputImage = ScaleInputImage(processedImage);
-				// // Copy the data from the Texture2D to the RenderTexture
-				// Graphics.Blit(scaledInputImage, inputTexture);
-				// // Destroy the temporary Texture2D
-				// Destroy(scaledInputImage);
+				// Graphics.Blit(processedImage, inputTexture);
+				Texture2D scaledInputImage = ScaleInputImage(processedImage);
+				// Copy the data from the Texture2D to the RenderTexture
+				Graphics.Blit(scaledInputImage, inputTexture);
+				// Destroy the temporary Texture2D
+				Destroy(scaledInputImage);
 			} else {
 				inputScreen.SetActive(false);
 			}
 
 
             //TODO: Create Tensor
+			Tensor input = new Tensor(processedImage, channels: 3);
 
             //TODO: Execute Engine
+			engine.Execute(input);
 
             //TODO: Process Results
             // ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
@@ -103,6 +118,7 @@ namespace Pose.Detection
             //TODO: Draw Skeleton
 
             //TODO: Clean up tensors and other resources
+			input.Dispose();
 
             Destroy(processedImage);
         }
@@ -110,6 +126,7 @@ namespace Pose.Detection
         private void OnDisable()
         {
             //TODO: Release the inference engine
+			engine.Dispose();
 
             //Release videoTexture
             videoTexture.Release();
