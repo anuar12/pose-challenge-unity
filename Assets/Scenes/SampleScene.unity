@@ -344,7 +344,7 @@ VideoPlayer:
   m_RenderMode: 2
   m_AspectRatio: 2
   m_DataSource: 0
-  m_PlaybackSpeed: 1
+  m_PlaybackSpeed: 0.08
   m_AudioOutputMode: 0
   m_TargetAudioSources:
   - {fileID: 0}
@@ -405,13 +405,13 @@ MonoBehaviour:
   videoPlayer: {fileID: 198834919}
   preprocessingShader: {fileID: 7200000, guid: b2d3ebeb159c53044bb1126cd072d5ae, type: 3}
   videoTexture: {fileID: 8400000, guid: b3fa0157cead1534494bf1a5d87c382d, type: 2}
-  imageHeight: 360
-  imageWidth: 360
+  imageHeight: 352
+  imageWidth: 352
   videoQuad: {fileID: 38423430}
   displayInput: 1
   inputScreen: {fileID: 1624050861}
   inputTexture: {fileID: 8400000, guid: d5d96e803d1fd404fbffbb501469466e, type: 2}
-  modelAsset: {fileID: 5022602860645237092, guid: 38a59ec4413754ee49232e23fe17c24a,
+  modelAsset: {fileID: 5022602860645237092, guid: cd83124bab08c4b38a9fb3cdbf908c00,
     type: 3}
   workerType: 32768
   keypoints:
@@ -432,7 +432,7 @@ MonoBehaviour:
   - {fileID: 1052440033}
   - {fileID: 1955900375}
   - {fileID: 1336343527}
-  minConfidence: 70
+  minConfidence: 10
 --- !u!4 &279055183
 Transform:
   m_ObjectHideFlags: 0
@@ -2123,7 +2123,7 @@ Transform:
   m_GameObject: {fileID: 1624050861}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 180, y: 180, z: -1}
-  m_LocalScale: {x: 360, y: 360, z: 1}
+  m_LocalScale: {x: 352, y: 352, z: 1}
   m_Children: []
   m_Father: {fileID: 0}
   m_RootOrder: 3
