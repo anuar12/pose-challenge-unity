@@ -50,10 +50,7 @@ namespace Pose.Detection
 		private Model m_RuntimeModel;
 		private IWorker engine;
 
-		// private string heatmapLayer = "float_heatmaps";
 		private string heatmapLayer = "heatmaps";
-		private string offsetsLayer = "float_short_offsets";
-		private string predictionLayer = "heatmap_predictions";
 
 		public GameObject[] keypoints;
 
@@ -85,14 +82,10 @@ namespace Pose.Detection
                 mainCamera.GetComponent<Camera>().orthographicSize = _videoHeight / 2;
             }
 
-            //TODO: Create Model from onnx asset and compile it to an object
 			m_RuntimeModel = ModelLoader.Load(modelAsset);
 
-            //TODO: Add Layers to model
 			var modelBuilder = new ModelBuilder(m_RuntimeModel);
-            // modelBuilder.Sigmoid(predictionLayer, heatmapLayer);
 
-            //TODO: Create Worker Engine
 			engine = WorkerFactory.CreateWorker(workerType, modelBuilder.model);
         }
 
@@ -106,30 +99,21 @@ namespace Pose.Detection
 				inputScreen.SetActive(true);
 				// Graphics.Blit(processedImage, inputTexture);
 				Texture2D scaledInputImage = ScaleInputImage(processedImage);
-				// Copy the data from the Texture2D to the RenderTexture
 				Graphics.Blit(scaledInputImage, inputTexture);
-				// Destroy the temporary Texture2D
 				Destroy(scaledInputImage);
 			} else {
 				inputScreen.SetActive(false);
 			}
 
-
-            //TODO: Create Tensor
 			Tensor input = new Tensor(processedImage, channels: 3);
 
-            //TODO: Execute Engine
 			engine.Execute(input);
 
-            //TODO: Process Results
-			// ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
-			ProcessResults2(engine.PeekOutput(heatmapLayer));
+			ProcessResults(engine.PeekOutput(heatmapLayer));
 
-            //TODO: Draw Skeleton
 			UpdateKeyPointPositions();
 			FillAndUpdatePrevPos();
 
-            //TODO: Clean up tensors and other resources
 			input.Dispose();
 
             Destroy(processedImage);
@@ -137,7 +121,6 @@ namespace Pose.Detection
 
         private void OnDisable()
         {
-            //TODO: Release the inference engine
 			engine.Dispose();
 
             //Release videoTexture
@@ -146,124 +129,6 @@ namespace Pose.Detection
 
 
         #region Additional Methods
-
-		private void ProcessResults2(Tensor heatmaps) {
-            // float stride = (imageHeight - 1) / (heatmaps.shape.height - 1);
-            // stride -= (stride % 8);
-			float stride = imageHeight / heatmaps.shape.height;
-
-            int minDimension = Mathf.Min(videoTexture.width, videoTexture.height);
-            int maxDimension = Mathf.Max(videoTexture.width, videoTexture.height);
-
-			var scaleY = (float) videoTexture.height / (float) imageHeight;
-			var scaleX = (float) videoTexture.width / (float) imageWidth;
-			Debug.Log("START: " + videoTexture.width + " " + videoTexture.height + " " + minDimension + " " + imageWidth);
-			Debug.Log("stride/scale: " + stride + " " + scaleX + " " + scaleY);
-
-			for (int k = 0; k < numKeypoints; k++) {
-				var locationInfo = LocateKeyPoint2(heatmaps, k);
-                var coords = locationInfo.Item1;
-                var confidenceValue = locationInfo.Item2;
-
-				// Debug.Log("Yes: " + coords[0] + " " + coords[1] + " " + stride + " " + scale);
-                var xPos = coords[0]*stride*scaleX;
-                var yPos = (imageHeight - (coords[1]*stride))*scaleY;
-				Debug.Log("Pos: " + xPos + " " + yPos + " " + confidenceValue);
-
-                keypointLocations[k] = new float[] { xPos, yPos, confidenceValue };
-
-			}
-		}
-
-        private (float[],float) LocateKeyPoint2(Tensor heatmaps, int i)
-        {
-            //Find the heatmap index that contains the highest confidence value and the associated offset vector
-            var maxConfidence = 0f;
-            var coords = new float[2];
-
-            for (int y = 0; y < heatmaps.shape.height; y++)
-            {
-                for (int x = 0; x < heatmaps.shape.width; x++)
-                {
-                    if (heatmaps[0, y, x, i] > maxConfidence)
-                    {
-                        maxConfidence = heatmaps[0, y, x, i];
-                        coords = new float[] { x, y };
-                    }
-                }
-            }
-			// Debug.Log("HERE: " + coords[0] + " " + coords[1]);
-            return (coords, maxConfidence);
-        }
-
-        private void ProcessResults(Tensor heatmaps, Tensor offsets)
-        {
-            // Determine the estimated key point locations using the heatmaps and offsets tensors
-
-            // Calculate the stride used to scale down the inputImage
-            float stride = (imageHeight - 1) / (heatmaps.shape.height - 1);
-            stride -= (stride % 8);
-
-            int minDimension = Mathf.Min(videoTexture.width, videoTexture.height);
-            int maxDimension = Mathf.Max(videoTexture.width, videoTexture.height);
-
-            //Recalculate scale for the keypoints
-            var scale = (float) minDimension / (float) Mathf.Min(imageWidth, imageHeight);
-            var adjustedScale = (float)maxDimension / (float)minDimension;
-
-            // Iterate through heatmaps
-            for (int k = 0; k < numKeypoints; k++)
-            {
-                //Find Location of keypoint
-                var locationInfo = LocateKeyPoint(heatmaps, offsets, k);
-
-                // The (x, y) coordinates contains the confidence value in the current heatmap
-                var coords = locationInfo.Item1;
-                var offsetVector = locationInfo.Item2;
-                var confidenceValue = locationInfo.Item3;
-
-                //Calulate X position and Y position
-                var xPos = (coords[0]*stride + offsetVector[0])*scale;
-                var yPos = (imageHeight - (coords[1]*stride + offsetVector[1]))*scale;
-                if (videoTexture.width > videoTexture.height) {
-                    xPos *= adjustedScale;
-                }
-                else
-                {
-                    yPos *= adjustedScale;
-                }
-
-                keypointLocations[k] = new float[] { xPos, yPos, confidenceValue };
-            }
-        }
-
-        private (float[],float[],float) LocateKeyPoint(Tensor heatmaps, Tensor offsets, int i)
-        {
-            //Find the heatmap index that contains the highest confidence value and the associated offset vector
-            var maxConfidence = 0f;
-            var coords = new float[2];
-            var offsetVector = new float[2];
-
-            // Iterate through heatmap columns
-            for (int y = 0; y < heatmaps.shape.height; y++)
-            {
-                // Iterate through column rows
-                for (int x = 0; x < heatmaps.shape.width; x++)
-                {
-                    if (heatmaps[0, y, x, i] > maxConfidence)
-                    {
-                        maxConfidence = heatmaps[0, y, x, i];
-                        coords = new float[] { x, y };
-                        offsetVector = new float[]
-                        {
-                            offsets[0, y, x, i + numKeypoints],
-                            offsets[0, y, x, i]
-                        };
-                    }
-                }
-            }
-            return (coords, offsetVector, maxConfidence);
-        }
 
         private Texture2D PreprocessTexture()
         {
@@ -276,42 +141,28 @@ namespace Pose.Detection
             Texture2D tempTex = Resize(imageTexture, imageHeight, imageWidth);
             Destroy(imageTexture);
 
-            // TODO: Apply model-specific preprocessing
-            imageTexture = PreprocessNetwork2(tempTex);
+            imageTexture = PreprocessNetwork(tempTex);
 
             Destroy(tempTex);
             return imageTexture;
         }
 
-        private Texture2D PreprocessNetwork(Texture2D inputImage)
+        private Texture2D Resize(Texture2D image, int newWidth, int newHeight)
         {
-            // Use Compute Shaders (GPU) to preprocess your image
-            // Each model requires a specific color space - RGB
-            // Values need to scaled to what it was trained on
-
-            var numthreads = 8;
-            var kernelHandle = preprocessingShader.FindKernel("Preprocess");
-            var rTex = new RenderTexture(inputImage.width,
-                inputImage.height, 24, RenderTextureFormat.ARGBHalf);
-            rTex.enableRandomWrite = true;
-            rTex.Create();
-
-            preprocessingShader.SetTexture(kernelHandle, "Result", rTex);
-            preprocessingShader.SetTexture(kernelHandle, "InputImage", inputImage);
-            preprocessingShader.Dispatch(kernelHandle, inputImage.height
-                                                       / numthreads,
-                inputImage.width / numthreads, 1);
-
+            RenderTexture rTex = RenderTexture.GetTemporary(newWidth, newHeight, 24);
             RenderTexture.active = rTex;
-            Texture2D nTex = new Texture2D(rTex.width, rTex.height, TextureFormat.RGBAHalf, false);
+
+            Graphics.Blit(image, rTex);
+            Texture2D nTex = new Texture2D(newWidth, newHeight, TextureFormat.RGBA32, false);
+
             Graphics.CopyTexture(rTex, nTex);
             RenderTexture.active = null;
 
-            Destroy(rTex);
+            RenderTexture.ReleaseTemporary(rTex);
             return nTex;
         }
 
-        private Texture2D PreprocessNetwork2(Texture2D inputImage)
+        private Texture2D PreprocessNetwork(Texture2D inputImage)
         {
             // Use Compute Shaders (GPU) to preprocess your image
             // Each model requires a specific color space - RGB
@@ -339,19 +190,42 @@ namespace Pose.Detection
             return nTex;
         }
 
-        private Texture2D Resize(Texture2D image, int newWidth, int newHeight)
+		private void ProcessResults(Tensor heatmaps) {
+			float stride = imageHeight / heatmaps.shape.height;
+
+			var scaleY = (float) videoTexture.height / (float) imageHeight;
+			var scaleX = (float) videoTexture.width / (float) imageWidth;
+
+			for (int k = 0; k < numKeypoints; k++) {
+				var locationInfo = LocateKeyPoint(heatmaps, k);
+                var coords = locationInfo.Item1;
+                var confidenceValue = locationInfo.Item2;
+
+                var xPos = coords[0]*stride*scaleX;
+                var yPos = (imageHeight - (coords[1]*stride))*scaleY;
+
+                keypointLocations[k] = new float[] { xPos, yPos, confidenceValue };
+			}
+		}
+
+        private (float[],float) LocateKeyPoint(Tensor heatmaps, int i)
         {
-            RenderTexture rTex = RenderTexture.GetTemporary(newWidth, newHeight, 24);
-            RenderTexture.active = rTex;
+            //Find the heatmap index that contains the highest confidence value and the associated offset vector
+            var maxConfidence = 0f;
+            var coords = new float[2];
 
-            Graphics.Blit(image, rTex);
-            Texture2D nTex = new Texture2D(newWidth, newHeight, TextureFormat.RGBA32, false);
-
-            Graphics.CopyTexture(rTex, nTex);
-            RenderTexture.active = null;
-
-            RenderTexture.ReleaseTemporary(rTex);
-            return nTex;
+            for (int y = 0; y < heatmaps.shape.height; y++)
+            {
+                for (int x = 0; x < heatmaps.shape.width; x++)
+                {
+                    if (heatmaps[0, y, x, i] > maxConfidence)
+                    {
+                        maxConfidence = heatmaps[0, y, x, i];
+                        coords = new float[] { x, y };
+                    }
+                }
+            }
+            return (coords, maxConfidence);
         }
 
 		private Texture2D ScaleInputImage(Texture2D inputImage)
@@ -403,6 +277,8 @@ namespace Pose.Detection
 			}
 		}
 
+		// Simple extrapolation of keypoints when the current frame's joint keypoints
+		// is not available. If not available: use prevPos + prevVelocity position.
 		private void FillAndUpdatePrevPos() {
 			for (int k = 0; k < numKeypoints; k++) {
 				if (keypointLocations[k][2] < minConfidence / 100f) {
