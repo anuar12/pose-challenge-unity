@@ -35,10 +35,16 @@ Along the way read the most important concepts in the Working in Unity, Graphics
 
 Go through the Christian Mills tutorial. Steps are very well presented and easily understood, however there is lots of knowledge missing due to gaps in understanding Unity & C#, therefore I tried to refer back to Step 1 whenever.
 
-### Step 3. Debugging and problem solving the tutorial
+### Step 3. Debugging and problem solving the tutorial (Challenges)
 
-I faced quite a few small bugs along the way.
-There was one annoying bug that took me more than half a day to figure out. The problem was that the keypoints were not updating position, I debugged (logged variables, used debugger & rendered processed input image) and found that the input image wasn't correct which turned out that shaders weren't running correctly. At the end of the day, it turned out that one has to use exact version of Unity as of tutorial's in order to make sure everything worked correctly.
+Several examples of bugs and challenges:
+
+-  Managing learning and time commitment, i.e. I can spend the to learn but that can take significantly longer than delivering the project. Thus I always tried to evaluate "is this concept / code snippet important for me to understand or can I take a leap of faith for now?".
+-  Difficult to understand the relationship between Unity IDE GUI and scripting API, e.g. should I change SerializedField in the Inspector or in the code?
+-  Debugging and simple printing of values was challenging at first.
+-  General understanding of Unity objects like Texture, Material, etc... Helped to read the Manual and google.
+
+There was one annoying bug that took me more than half a day to figure out. The problem was that the keypoints were not updating position, I debugged (logged variables, used debugger & rendered processed input image and also went back through the tutorial) and found that the input image wasn't correct which turned out that shaders weren't running correctly. At the end of the day, it turned out that one has to use exact version of Unity as of tutorial's in order to make sure everything worked correctly.
 
 ### Step 4. New model integration
 
