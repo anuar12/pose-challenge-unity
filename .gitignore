@@ -60,6 +60,6 @@ crashlytics-build.properties
 
 UserSettings/
 .vscode
-*.mp4
-*.onnx
+# *.mp4
+# *.onnx
 .DS_Store
