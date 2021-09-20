@@ -1,6 +1,6 @@
 ## Unity: From Newbie to Amateur
 
-> This project was developed in Unity 2019.3 and Barracuda 1.04. It is recommended one would use the same versions of Unity and Barracuda.
+> This project was developed in Unity 2019.4 and Barracuda 1.0.4. It is recommended one would use the same versions of Unity and Barracuda.
 
 ### Goal of the project
 
