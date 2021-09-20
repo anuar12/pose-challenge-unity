@@ -6,7 +6,7 @@ The goal of the project is to render 2D human pose estimation keypoints on a vid
 
 We should be able to see an output running like so below:
 
-![](pose_sample.jpg)
+![Sample Pose Image](pose_sample.jpg)
 
 ### Step 1. Learning from scratch
 
