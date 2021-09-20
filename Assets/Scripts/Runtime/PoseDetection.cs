@@ -59,6 +59,9 @@ namespace Pose.Detection
 		[Range(0, 100)]
 		public int minConfidence = 70;
 
+		private float[][] prevPos = new float[numKeypoints][];
+		private float[][] prevVelocity = new float[numKeypoints][];
+
         private void Start()
         {
             _videoHeight = (int)videoPlayer.GetComponent<VideoPlayer>().height;
@@ -122,6 +125,7 @@ namespace Pose.Detection
 
             //TODO: Draw Skeleton
 			UpdateKeyPointPositions();
+			FillAndUpdatePrevPos();
 
             //TODO: Clean up tensors and other resources
 			input.Dispose();
@@ -317,6 +321,38 @@ namespace Pose.Detection
 
 				Vector3 newPos = new Vector3(keypointLocations[k][0], keypointLocations[k][1], -1f);
 				keypoints[k].transform.position = newPos;
+			}
+		}
+
+		private void FillAndUpdatePrevPos() {
+			for (int k = 0; k < numKeypoints; k++) {
+				if (keypointLocations[k][2] < minConfidence / 100f) {
+					// Fill in the keypoints if possible
+					if (prevPos[k] != null && prevPos[k][2] >= minConfidence / 100f) {
+						Vector3 newPos;
+						if (prevVelocity[k] != null) {
+							newPos = new Vector3(prevPos[k][0], prevPos[k][1], -1f);
+						} else {
+							newPos = new Vector3(prevPos[k][0] + prevVelocity[k][0],
+								prevPos[k][1] + prevVelocity[k][1],
+								-1f);
+						}
+						keypoints[k].transform.position = newPos;
+						keypoints[k].SetActive(true);
+					}
+					prevPos[k] = new float[] { 0, 0, -1};
+					prevVelocity[k] = new float[] {0, 0, -1};
+				} else {  // update the prev positions and velocities
+					if (prevPos[k] != null) {
+						prevVelocity[k] = new float[] {
+							keypointLocations[k][0] - prevPos[k][0],
+							keypointLocations[k][1] - prevPos[k][1],
+							1 };
+					} else {
+						prevVelocity[k] = new float[] {0, 0, -1};
+					}
+					prevPos[k] = keypointLocations[k];
+				}
 			}
 		}
 
