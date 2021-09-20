@@ -21,8 +21,8 @@ namespace Pose.Detection
         public RenderTexture videoTexture;
 
         [Space]
-        [SerializeField] private int imageHeight = 360;
-        [SerializeField] private int imageWidth = 360;
+        [SerializeField] private int imageHeight = 352;
+        [SerializeField] private int imageWidth = 352;
 
         [Space]
         [SerializeField] private GameObject videoQuad;
@@ -50,7 +50,8 @@ namespace Pose.Detection
 		private Model m_RuntimeModel;
 		private IWorker engine;
 
-		private string heatmapLayer = "float_heatmaps";
+		// private string heatmapLayer = "float_heatmaps";
+		private string heatmapLayer = "heatmaps";
 		private string offsetsLayer = "float_short_offsets";
 		private string predictionLayer = "heatmap_predictions";
 
@@ -89,7 +90,7 @@ namespace Pose.Detection
 
             //TODO: Add Layers to model
 			var modelBuilder = new ModelBuilder(m_RuntimeModel);
-            modelBuilder.Sigmoid(predictionLayer, heatmapLayer);
+            // modelBuilder.Sigmoid(predictionLayer, heatmapLayer);
 
             //TODO: Create Worker Engine
 			engine = WorkerFactory.CreateWorker(workerType, modelBuilder.model);
@@ -121,7 +122,8 @@ namespace Pose.Detection
 			engine.Execute(input);
 
             //TODO: Process Results
-			ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
+			// ProcessResults(engine.PeekOutput(predictionLayer), engine.PeekOutput(offsetsLayer));
+			ProcessResults2(engine.PeekOutput(heatmapLayer));
 
             //TODO: Draw Skeleton
 			UpdateKeyPointPositions();
@@ -144,6 +146,55 @@ namespace Pose.Detection
 
 
         #region Additional Methods
+
+		private void ProcessResults2(Tensor heatmaps) {
+            // float stride = (imageHeight - 1) / (heatmaps.shape.height - 1);
+            // stride -= (stride % 8);
+			float stride = imageHeight / heatmaps.shape.height;
+
+            int minDimension = Mathf.Min(videoTexture.width, videoTexture.height);
+            int maxDimension = Mathf.Max(videoTexture.width, videoTexture.height);
+
+			var scaleY = (float) videoTexture.height / (float) imageHeight;
+			var scaleX = (float) videoTexture.width / (float) imageWidth;
+			Debug.Log("START: " + videoTexture.width + " " + videoTexture.height + " " + minDimension + " " + imageWidth);
+			Debug.Log("stride/scale: " + stride + " " + scaleX + " " + scaleY);
+
+			for (int k = 0; k < numKeypoints; k++) {
+				var locationInfo = LocateKeyPoint2(heatmaps, k);
+                var coords = locationInfo.Item1;
+                var confidenceValue = locationInfo.Item2;
+
+				// Debug.Log("Yes: " + coords[0] + " " + coords[1] + " " + stride + " " + scale);
+                var xPos = coords[0]*stride*scaleX;
+                var yPos = (imageHeight - (coords[1]*stride))*scaleY;
+				Debug.Log("Pos: " + xPos + " " + yPos + " " + confidenceValue);
+
+                keypointLocations[k] = new float[] { xPos, yPos, confidenceValue };
+
+			}
+		}
+
+        private (float[],float) LocateKeyPoint2(Tensor heatmaps, int i)
+        {
+            //Find the heatmap index that contains the highest confidence value and the associated offset vector
+            var maxConfidence = 0f;
+            var coords = new float[2];
+
+            for (int y = 0; y < heatmaps.shape.height; y++)
+            {
+                for (int x = 0; x < heatmaps.shape.width; x++)
+                {
+                    if (heatmaps[0, y, x, i] > maxConfidence)
+                    {
+                        maxConfidence = heatmaps[0, y, x, i];
+                        coords = new float[] { x, y };
+                    }
+                }
+            }
+			// Debug.Log("HERE: " + coords[0] + " " + coords[1]);
+            return (coords, maxConfidence);
+        }
 
         private void ProcessResults(Tensor heatmaps, Tensor offsets)
         {
@@ -226,7 +277,7 @@ namespace Pose.Detection
             Destroy(imageTexture);
 
             // TODO: Apply model-specific preprocessing
-            imageTexture = PreprocessNetwork(tempTex);
+            imageTexture = PreprocessNetwork2(tempTex);
 
             Destroy(tempTex);
             return imageTexture;
@@ -240,6 +291,34 @@ namespace Pose.Detection
 
             var numthreads = 8;
             var kernelHandle = preprocessingShader.FindKernel("Preprocess");
+            var rTex = new RenderTexture(inputImage.width,
+                inputImage.height, 24, RenderTextureFormat.ARGBHalf);
+            rTex.enableRandomWrite = true;
+            rTex.Create();
+
+            preprocessingShader.SetTexture(kernelHandle, "Result", rTex);
+            preprocessingShader.SetTexture(kernelHandle, "InputImage", inputImage);
+            preprocessingShader.Dispatch(kernelHandle, inputImage.height
+                                                       / numthreads,
+                inputImage.width / numthreads, 1);
+
+            RenderTexture.active = rTex;
+            Texture2D nTex = new Texture2D(rTex.width, rTex.height, TextureFormat.RGBAHalf, false);
+            Graphics.CopyTexture(rTex, nTex);
+            RenderTexture.active = null;
+
+            Destroy(rTex);
+            return nTex;
+        }
+
+        private Texture2D PreprocessNetwork2(Texture2D inputImage)
+        {
+            // Use Compute Shaders (GPU) to preprocess your image
+            // Each model requires a specific color space - RGB
+            // Values need to scaled to what it was trained on
+
+            var numthreads = 8;
+            var kernelHandle = preprocessingShader.FindKernel("Standardize");
             var rTex = new RenderTexture(inputImage.width,
                 inputImage.height, 24, RenderTextureFormat.ARGBHalf);
             rTex.enableRandomWrite = true;

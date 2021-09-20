@@ -1,5 +1,6 @@
 #pragma kernel Preprocess
 #pragma kernel ScaleInputImage
+#pragma kernel Standardize
 #pragma kernel FlipImage
 
 RWTexture2D<half4> Result;
@@ -20,9 +21,17 @@ void Preprocess(uint3 id : SV_DispatchThreadID)
 [numthreads(8, 8, 1)]
 void ScaleInputImage(uint3 id : SV_DispatchThreadID)
 {
-    Result[id.xy] = half4((InputImage[id.xy].x / 2.0h),
-        (InputImage[id.xy].y / 2.0h),
-        (InputImage[id.xy].z / 2.0h), 1.0h);
+    Result[id.xy] = half4((InputImage[id.xy].x / 256.0h),
+        (InputImage[id.xy].y / 256.0h),
+        (InputImage[id.xy].z / 256.0h), 1.0h);
+}
+
+[numthreads(8, 8, 1)]
+void Standardize(uint3 id : SV_DispatchThreadID)
+{
+    Result[id.xy] = half4((InputImage[id.xy].x  + (-0.485h)) / 0.229h,
+        (InputImage[id.xy].y + (-0.456h)) / 0.224h,
+        (InputImage[id.xy].z + (-0.406h)) / 0.225h, 1.0h);
 }
 
 [numthreads(8, 8, 1)]
